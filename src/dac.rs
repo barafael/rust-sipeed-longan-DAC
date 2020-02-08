@@ -1,7 +1,7 @@
-use crate::register_helpers::*;
 use crate::rcu::rcu_periph_reset_disable;
 use crate::rcu::rcu_periph_reset_enable;
 use crate::rcu::rcu_regidx_bit;
+use crate::register_helpers::*;
 
 /* DAC constants */
 // Some of these have to be crate-public. A better API would hide that.
@@ -10,6 +10,8 @@ const DAC: u32 = APB1_BUS_BASE + 0x0000_7400;
 
 pub(crate) const DAC0: u32 = 0;
 const DAC1: u32 = 1;
+
+pub(crate) const DAC0_R8DH_ADDRESS: u32 = 0x4000_7410;
 
 const DAC_CTL: *mut u32 = reg32(DAC + 0x0);
 const DAC_SWT: *mut u32 = reg32(DAC + 0x4);
@@ -45,7 +47,14 @@ const DAC_CTL_DTSEL1: u32 = bits(19, 21);
 const DAC_SWT_SWTR0: u32 = bit(0);
 const DAC_SWT_SWTR1: u32 = bit(1);
 
-pub(crate) const DAC_TRIGGER_SOFTWARE: u32 = ctl_dtsel(7);
+pub(crate) const DAC_TRIGGER_T5_TRGO:  u32 = ctl_dtsel(0);         /* TIMER5 TRGO */
+pub(crate) const DAC_TRIGGER_T2_TRGO:  u32 = ctl_dtsel(1);         /* TIMER2 TRGO */
+pub(crate) const DAC_TRIGGER_T6_TRGO:  u32 = ctl_dtsel(2);         /* TIMER6 TRGO */
+pub(crate) const DAC_TRIGGER_T4_TRGO:  u32 = ctl_dtsel(3);         /* TIMER4 TRGO */
+pub(crate) const DAC_TRIGGER_T1_TRGO:  u32 = ctl_dtsel(4);         /* TIMER1 TRGO */
+pub(crate) const DAC_TRIGGER_T3_TRGO:  u32 = ctl_dtsel(5);         /* TIMER3 TRGO */
+pub(crate) const DAC_TRIGGER_EXTI_9:   u32 = ctl_dtsel(6);         /* EXTI interrupt line9 event */
+pub(crate) const DAC_TRIGGER_SOFTWARE: u32 = ctl_dtsel(7);         /* software trigger */
 
 const fn ctl_dwm(regval: u32) -> u32 {
     bits(6, 7) & (regval << 6)
@@ -59,49 +68,49 @@ const fn ctl_dtsel(reg_val: u32) -> u32 {
 
 pub fn dac_enable(dac_periph: u32) {
     if dac_periph == DAC0 {
-        set_bit(DAC_CTL, DAC_CTL_DEN0);
+        set_bits(DAC_CTL, DAC_CTL_DEN0);
     } else if dac_periph == DAC1 {
-        set_bit(DAC_CTL, DAC_CTL_DEN1);
+        set_bits(DAC_CTL, DAC_CTL_DEN1);
     }
 }
 
 pub fn dac_disable(dac_periph: u32) {
     if dac_periph == DAC0 {
-        reset_bit(DAC_CTL, DAC_CTL_DEN0);
+        reset_bits(DAC_CTL, DAC_CTL_DEN0);
     } else if dac_periph == DAC1 {
-        reset_bit(DAC_CTL, DAC_CTL_DEN1);
+        reset_bits(DAC_CTL, DAC_CTL_DEN1);
     }
 }
 
 pub fn dac_dma_enable(dac_periph: u32) {
     if dac_periph == DAC0 {
-        set_bit(DAC_CTL, DAC_CTL_DDMAEN0);
+        set_bits(DAC_CTL, DAC_CTL_DDMAEN0);
     } else if dac_periph == DAC1 {
-        set_bit(DAC_CTL, DAC_CTL_DDMAEN1);
+        set_bits(DAC_CTL, DAC_CTL_DDMAEN1);
     }
 }
 
 pub fn dac_dma_disable(dac_periph: u32) {
     if dac_periph == DAC0 {
-        reset_bit(DAC_CTL, DAC_CTL_DDMAEN0);
+        reset_bits(DAC_CTL, DAC_CTL_DDMAEN0);
     } else if dac_periph == DAC1 {
-        reset_bit(DAC_CTL, DAC_CTL_DDMAEN1);
+        reset_bits(DAC_CTL, DAC_CTL_DDMAEN1);
     }
 }
 
 pub fn dac_output_buffer_enable(dac_periph: u32) {
     if dac_periph == DAC0 {
-        reset_bit(DAC_CTL, DAC_CTL_DBOFF0);
+        reset_bits(DAC_CTL, DAC_CTL_DBOFF0);
     } else if dac_periph == DAC1 {
-        reset_bit(DAC_CTL, DAC_CTL_DBOFF1);
+        reset_bits(DAC_CTL, DAC_CTL_DBOFF1);
     }
 }
 
 pub fn dac_output_buffer_disable(dac_periph: u32) {
     if dac_periph == DAC0 {
-        set_bit(DAC_CTL, DAC_CTL_DBOFF0);
+        set_bits(DAC_CTL, DAC_CTL_DBOFF0);
     } else if dac_periph == DAC1 {
-        set_bit(DAC_CTL, DAC_CTL_DBOFF1);
+        set_bits(DAC_CTL, DAC_CTL_DBOFF1);
     }
 }
 
@@ -129,45 +138,45 @@ pub fn dac_data_set(dac_periph: u32, dac_align: u32, data: u16) {
 
 pub fn dac_trigger_enable(dac_periph: u32) {
     if dac_periph == DAC0 {
-        set_bit(DAC_CTL, DAC_CTL_DTEN0);
+        set_bits(DAC_CTL, DAC_CTL_DTEN0);
     } else if dac_periph == DAC1 {
-        set_bit(DAC_CTL, DAC_CTL_DTEN1);
+        set_bits(DAC_CTL, DAC_CTL_DTEN1);
     }
 }
 
 pub fn dac_trigger_disable(dac_periph: u32) {
     if dac_periph == DAC0 {
-        reset_bit(DAC_CTL, DAC_CTL_DTEN0);
+        reset_bits(DAC_CTL, DAC_CTL_DTEN0);
     } else if dac_periph == DAC1 {
-        reset_bit(DAC_CTL, DAC_CTL_DTEN1);
+        reset_bits(DAC_CTL, DAC_CTL_DTEN1);
     }
 }
 
 pub fn dac_wave_mode_config(dac_periph: u32, wave_mode: u32) {
     if dac_periph == DAC0 {
-        reset_bit(DAC_CTL, DAC_CTL_DWM0);
-        set_bit(DAC_CTL, wave_mode);
+        reset_bits(DAC_CTL, DAC_CTL_DWM0);
+        set_bits(DAC_CTL, wave_mode);
     } else if dac_periph == DAC1 {
-        reset_bit(DAC_CTL, DAC_CTL_DWM1);
-        set_bit(DAC_CTL, wave_mode << DAC1_REG_OFFSET);
+        reset_bits(DAC_CTL, DAC_CTL_DWM1);
+        set_bits(DAC_CTL, wave_mode << DAC1_REG_OFFSET);
     }
 }
 
 pub fn dac_trigger_source_config(dac_periph: u32, triggersource: u32) {
     if dac_periph == DAC0 {
-        reset_bit(DAC_CTL, DAC_CTL_DTSEL0);
-        set_bit(DAC_CTL, triggersource);
+        reset_bits(DAC_CTL, DAC_CTL_DTSEL0);
+        set_bits(DAC_CTL, triggersource);
     } else if dac_periph == DAC1 {
-        reset_bit(DAC_CTL, DAC_CTL_DTSEL1);
-        set_bit(DAC_CTL, triggersource << DAC1_REG_OFFSET);
+        reset_bits(DAC_CTL, DAC_CTL_DTSEL1);
+        set_bits(DAC_CTL, triggersource << DAC1_REG_OFFSET);
     }
 }
 
 pub fn dac_software_trigger_enable(dac_periph: u32) {
     if dac_periph == DAC0 {
-        set_bit(DAC_SWT, DAC_SWT_SWTR0);
+        set_bits(DAC_SWT, DAC_SWT_SWTR0);
     } else if dac_periph == DAC1 {
-        set_bit(DAC_SWT, DAC_SWT_SWTR1);
+        set_bits(DAC_SWT, DAC_SWT_SWTR1);
     }
 }
 

@@ -86,4 +86,3 @@ pub fn gpio_init(gpio_periph: u32, mode: u32, speed: u32, pin: u32) {
         }
     }
 }
-

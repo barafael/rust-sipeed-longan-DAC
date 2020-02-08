@@ -26,15 +26,15 @@ pub fn set_register(register: *mut u32, value: u32) {
     }
 }
 
-pub fn set_bit(reg: *mut u32, bit: u32) {
+pub fn set_bits(reg: *mut u32, bits: u32) {
     unsafe {
         let mut value = core::ptr::read_volatile(reg);
-        value |= bit;
+        value |= bits;
         core::ptr::write_volatile(reg, value);
     }
 }
 
-pub fn reset_bit(reg: *mut u32, bit: u32) {
+pub fn reset_bits(reg: *mut u32, bit: u32) {
     unsafe {
         let mut value = core::ptr::read_volatile(reg);
         value &= !bit;

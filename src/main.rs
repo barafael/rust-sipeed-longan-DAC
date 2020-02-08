@@ -4,20 +4,30 @@
 
 use panic_abort;
 
-mod rcu;
-mod gpio;
 mod dac;
+mod dma;
+mod gpio;
+mod timer;
+mod rcu;
 mod register_helpers;
 
-use rcu::*;
-use gpio::*;
+use crate::dma::DmaChannel::DmaCh2;
+use crate::DmaChannel::DmaCh4;
 use dac::*;
+use dma::*;
+use timer::*;
+use gpio::*;
+use rcu::*;
 pub use register_helpers::*;
+
+const SIZE: usize = 10;
+const ARRAY: [u16; SIZE] = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200];
 
 fn rcu_config() {
     rcu_periph_clock_enable(RCU_GPIOA);
-    rcu_periph_clock_enable(RCU_GPIOC);
+    rcu_periph_clock_enable(RCU_DMA1);
     rcu_periph_clock_enable(RCU_DAC);
+    rcu_periph_clock_enable(RCU_TIMER5);
 }
 
 fn gpio_config() {
@@ -27,11 +37,45 @@ fn gpio_config() {
 
 fn dac_config() {
     dac_deinit();
-    dac_trigger_source_config(DAC0, DAC_TRIGGER_SOFTWARE);
+    dac_trigger_source_config(DAC0, DAC_TRIGGER_T5_TRGO);
     dac_trigger_enable(DAC0);
     dac_wave_mode_config(DAC0, DAC_WAVE_DISABLE);
     dac_output_buffer_enable(DAC0);
+
     dac_enable(DAC0);
+    dac_dma_enable(DAC0);
+}
+
+fn timer5_config() {
+    timer_prescaler_config(TIMER5, 0xf, TIMER_PSC_RELOAD_UPDATE);
+    timer_autoreload_value_config(TIMER5, 0xff);
+    timer_master_output_trigger_source_select(TIMER5, TIMER_TRI_OUT_SRC_UPDATE);
+
+    timer_enable(TIMER5);
+}
+
+fn dma_config() {
+    dma_flag_clear(DMA1, &DmaChannel::DmaCh2, DMA_INTF_GIF);
+    dma_flag_clear(DMA1, &DmaChannel::DmaCh2, DMA_INTF_FTFIF);
+    dma_flag_clear(DMA1, &DmaChannel::DmaCh2, DMA_INTF_HTFIF);
+    dma_flag_clear(DMA1, &DmaChannel::DmaCh2, DMA_INTF_ERRIF);
+
+    let pointer = ARRAY.as_ptr() as u32;
+    let a = DmaParameters {
+        periph_addr: DAC0_R8DH_ADDRESS,
+        periph_width: DMA_PERIPHERAL_WIDTH_8BIT,
+        memory_addr: pointer,
+        memory_width: DMA_MEMORY_WIDTH_8BIT,
+        number: SIZE as u32,
+        priority: DMA_PRIORITY_ULTRA_HIGH,
+        periph_inc: DMA_PERIPH_INCREASE_DISABLE,
+        memory_inc: DMA_MEMORY_INCREASE_ENABLE,
+        direction: DMA_MEMORY_TO_PERIPHERAL,
+    };
+
+    dma_init(DMA1, &DmaChannel::DmaCh2, &a);
+    dma_circulation_enable(DMA1, &DmaChannel::DmaCh2);
+    dma_channel_enable(DMA1, &DmaChannel::DmaCh2);
 }
 
 // The reset handler
@@ -52,19 +96,11 @@ fn delay(mut n: u32) {
 fn main() -> ! {
     rcu_config();
     gpio_config();
+    dma_config();
     dac_config();
+    timer5_config();
 
-    let mut dac_output: u16 = 0;
-    loop {
-        if dac_output >= 4096 {
-            dac_output = 0;
-        } else {
-            dac_output += 25;
-        }
-        dac_data_set(DAC0, DAC_ALIGN_12B_R, dac_output);
-        dac_software_trigger_enable(DAC0);
-        //delay(0xf);
-    }
+    loop {}
 }
 
 extern "C" {
