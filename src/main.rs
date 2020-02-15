@@ -4,15 +4,26 @@
 
 use panic_abort;
 
-mod rcu;
-mod gpio;
 mod dac;
+mod gpio;
+mod rcu;
 mod register_helpers;
 
-use rcu::*;
-use gpio::*;
 use dac::*;
+use gpio::*;
+use rcu::*;
 pub use register_helpers::*;
+
+use embedded_hal::blocking::delay::DelayMs;
+use gd32vf103xx_hal as hal;
+use gd32vf103xx_hal::delay::McycleDelay;
+use gd32vf103xx_hal::gpio::GpioExt;
+use gd32vf103xx_hal::prelude::*;
+use gd32vf103xx_hal::rcu::RcuExt;
+use hal::pac;
+use longan_nano::led::{rgb, Led};
+use longan_nano::sprintln;
+use riscv_rt::entry;
 
 fn rcu_config() {
     rcu_periph_clock_enable(RCU_GPIOA);
@@ -25,13 +36,13 @@ fn gpio_config() {
     gpio_init(GPIOA, GPIO_MODE_AIN, GPIO_OSPEED_50MHZ, GPIO_PIN_4);
 }
 
-fn dac_config() {
+fn dac_config(dac: &pac::DAC) {
     dac_deinit();
-    dac_trigger_source_config(DAC0, DAC_TRIGGER_SOFTWARE);
-    dac_trigger_enable(DAC0);
-    dac_wave_mode_config(DAC0, DAC_WAVE_DISABLE);
-    dac_output_buffer_enable(DAC0);
-    dac_enable(DAC0);
+    dac_trigger_source_config(&dac,DAC0, DAC_TRIGGER_SOFTWARE as u8);
+    dac_trigger_enable(&dac,DAC0);
+    dac_wave_mode_config(&dac,DAC0, DAC_WAVE_DISABLE as u8);
+    dac_output_buffer_enable(&dac, DAC0);
+    dac_enable(&dac, DAC0);
 }
 
 // The reset handler
@@ -50,19 +61,39 @@ fn delay(mut n: u32) {
 }
 
 fn main() -> ! {
+    let array: [u8; 10] = [0x00, 0x33, 0x66, 0x99, 0xcc, 0xff, 0xcc, 0x99, 0x66, 0x33];
+    let dp = pac::Peripherals::take().unwrap();
+    let mut rcu = dp
+        .RCU
+        .configure()
+        .ext_hf_clock(8.mhz())
+        .sysclk(108.mhz())
+        .freeze();
+
+    let gpioa = dp.GPIOA.split(&mut rcu);
+
+    longan_nano::stdout::configure(dp.USART0, gpioa.pa9, gpioa.pa10, 115_200.bps(), &mut rcu);
+
+    sprintln!("HELLO DAC");
+
+    let dac = dp.DAC;
     rcu_config();
     gpio_config();
-    dac_config();
+    dac_config(&dac);
 
     let mut dac_output: u16 = 0;
     loop {
         if dac_output >= 4096 {
             dac_output = 0;
         } else {
-            dac_output += 25;
+            if dac_output < 1000 {
+                dac_output += 10;
+            } else {
+                dac_output += 25;
+            }
         }
-        dac_data_set(DAC0, DAC_ALIGN_12B_R, dac_output);
-        dac_software_trigger_enable(DAC0);
+        dac_data_set(&dac, DAC0, DAC_ALIGN_12B_R, dac_output);
+        dac_software_trigger_enable(&dac, DAC0);
         //delay(0xf);
     }
 }
